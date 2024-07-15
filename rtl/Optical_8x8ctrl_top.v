@@ -153,7 +153,7 @@ always @(posedge i_clk or posedge i_rst)begin
     end
     else if(r_config_end)begin
         r_8x8in_grant_valid <= 'd0;
-        r_grant_8x8in       <= 'd0;  
+        r_grant_8x8in       <= r_grant_8x8in;  
     end
     else if(w_8x8in_grant_valid)begin
         r_8x8in_grant_valid <= w_8x8in_grant_valid;
@@ -172,7 +172,7 @@ always @(posedge i_clk or posedge i_rst)begin
     end
     else if(r_config_end)begin
         r_4x4_grant_valid_1 <= 'd0;
-        r_grant_4x4_1       <= 'd0;  
+        r_grant_4x4_1       <= r_grant_4x4_1;  
     end
     else if(w_4x4_grant_valid_1)begin
         r_4x4_grant_valid_1 <= w_4x4_grant_valid_1;
@@ -191,7 +191,7 @@ always @(posedge i_clk or posedge i_rst)begin
     end
     else if(r_config_end)begin
         r_4x4_grant_valid_2 <= 'd0;
-        r_grant_4x4_2       <= 'd0;  
+        r_grant_4x4_2       <= r_grant_4x4_2;  
     end
     else if(w_4x4_grant_valid_2)begin
         r_4x4_grant_valid_2 <= w_4x4_grant_valid_2;
@@ -210,7 +210,7 @@ always @(posedge i_clk or posedge i_rst)begin
     end
     else if(r_config_end)begin
         r_8x8out_grant_valid <= 'd0;
-        r_grant_8x8out       <= 'd0;  
+        r_grant_8x8out       <= r_grant_8x8out;  
     end
     else if(w_8x8out_grant_valid)begin
         r_8x8out_grant_valid <= w_8x8out_grant_valid;

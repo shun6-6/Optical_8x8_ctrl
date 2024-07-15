@@ -198,7 +198,7 @@ always @(posedge i_clk or posedge i_rst)begin
     end
     else if(ri_8x8in_valid)begin
         for(j = 0 ; j < P_PORTNUM ; j = j + 1)
-            dstOf_4x4port[j] <=  dstOf_8x8port[j] >> 1;
+            dstOf_4x4port[j] <= dstOf_8x8port[j] >> 1;
     end
     else if(i_config_end)begin
         for(j = 0 ; j < P_PORTNUM ; j = j + 1)

@@ -262,7 +262,7 @@ always @(posedge clk or posedge rst)begin
     else if(w_grant_valid)
         r_data_in <= r_8x8_req;
     else
-        r_data_in <= 'd0;
+        r_data_in <= r_data_in;
 end
 
 always @(posedge clk or posedge rst)begin
