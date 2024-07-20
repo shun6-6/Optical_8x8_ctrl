@@ -56,7 +56,7 @@ reg                                 ro_grant_valid  ;
 
 /***************assign****************/
 assign o_switch_grant = ro_switch_grant;
-assign o_grant_valid  = ro_grant_valid ;
+assign o_grant_valid  = i_8x8out_valid ? 1'b1 : 1'b0 ;
 /***************always****************/
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)begin
@@ -72,13 +72,13 @@ end
 genvar i;
 generate
     for(i = 0 ; i < P_SWITCHNUM ; i = i + 1)begin
-        always @(posedge i_clk or posedge i_rst)begin
+        always @(*)begin
             if(i_rst)
-                ro_switch_grant[i] <= 'd0;
-            else if(ri_8x8out_valid && (ri_8x8out_req[3*2*i +: 3] == (2*i)))
-                ro_switch_grant[i] <= P_BAR;
+                ro_switch_grant[i] = 'd0;
+            else if(i_8x8out_valid && (i_8x8out_req[3*2*i +: 3] == (2*i)))
+                ro_switch_grant[i] = P_BAR;
             else
-                ro_switch_grant[i] <= P_CROSS;
+                ro_switch_grant[i] = P_CROSS;
         end
     end
 endgenerate

@@ -71,6 +71,8 @@ reg  [P_DSTWIDTH*P_PORTNUM - 1:0]   ro_8x8out_req       ;
 reg                                 ro_8x8out_valid     ;
 reg  [7 :0]                         ro_4x4_req_1        ;
 reg  [7 :0]                         ro_4x4_req_2        ;
+reg  [7 :0]                         ro_4x4_req_1_reg    ;
+reg  [7 :0]                         ro_4x4_req_2_reg    ;
 reg                                 ro_4x4_valid        ;
 
 reg                                 ri_8x8in_valid      ;
@@ -80,10 +82,13 @@ reg  [P_DSTWIDTH*P_PORTNUM - 1:0]   ri_8x8in_req        ;
 //记录每个输入端口的目的端口
 //对于8x8输入级模块，记录他们需要的8x8输出端口
 reg  [P_DSTWIDTH-1 :0]  dstOf_8x8port [P_PORTNUM - 1 :0];
+reg  [P_DSTWIDTH-1 :0]  dstOf_8x8port_reg [P_PORTNUM - 1 :0];
 //对于8x8输出级模块，记录他们需要的8x8输出端口
 reg  [P_DSTWIDTH-1 :0]  dstOf_8x8endport [P_PORTNUM - 1 :0];
+reg  [P_DSTWIDTH-1 :0]  dstOf_8x8endport_reg [P_PORTNUM - 1 :0];
 //需要经过一级4x4模块才可以输出，记录他们需要的4x4输出端口
 reg  [P_DSTWIDTH-2 :0]  dstOf_4x4port [P_PORTNUM - 1 :0];   
+reg  [P_DSTWIDTH-2 :0]  dstOf_4x4port_reg [P_PORTNUM - 1 :0];
 /***************wire******************/
 //讨论一：（失败）向第一个4x4模块请求结束之后，还需要将第一次配置完的结果与第二个4x4模块再进行一次请求，以彻底解决冲突
 //讨论一：（失败）向第一个4x4模块请求结束之后，还会存在冲突，需要将优先级顺序调换，以保证第一次被配置的模块不会被二次修改，以彻底解决冲突
@@ -96,6 +101,10 @@ reg  [3 :0]             r_req_4x4module_out0            ;
 reg  [3 :0]             r_req_4x4module_out1            ;
 reg  [3 :0]             r_req_4x4module_out2            ;
 reg  [3 :0]             r_req_4x4module_out3            ;
+reg  [3 :0]             r_req_4x4module_out0_reg        ;
+reg  [3 :0]             r_req_4x4module_out1_reg        ;
+reg  [3 :0]             r_req_4x4module_out2_reg        ;
+reg  [3 :0]             r_req_4x4module_out3_reg        ;
 
 wire [3 :0]             w_req_4x4module_out0            ;
 wire [3 :0]             w_req_4x4module_out1            ;
@@ -171,49 +180,69 @@ assign o_4x4_valid      = ro_4x4_valid      ;
 /***************always****************/
 //8x8模块当中，对于每一个输入端口都对应一个要输出的端口，通过dstOf_8x8port记录
 integer i;
-always @(posedge i_clk or posedge i_rst)begin
+always @(*)begin
     if(i_rst)begin
         for(i = 0 ; i < P_PORTNUM ; i = i + 1)
-            dstOf_8x8port[i] <= 'd0;
+            dstOf_8x8port[i] = 'd0;
     end
     else if(i_8x8in_valid)begin
         for(i = 0 ; i < P_PORTNUM ; i = i + 1)
-            dstOf_8x8port[i] <= i_8x8in_req[P_DSTWIDTH*i +: P_DSTWIDTH];
+            dstOf_8x8port[i] = i_8x8in_req[P_DSTWIDTH*i +: P_DSTWIDTH];
     end
     else if(i_config_end)begin
         for(i = 0 ; i < P_PORTNUM ; i = i + 1)
-            dstOf_8x8port[i] <= 'd0;
+            dstOf_8x8port[i] = 'd0;
     end
     else begin
         for(i = 0 ; i < P_PORTNUM ; i = i + 1)
-            dstOf_8x8port[i] <= dstOf_8x8port[i];
+            dstOf_8x8port[i] = dstOf_8x8port_reg[i];
+    end
+end
+always @(posedge i_clk or posedge i_rst) begin
+    if(i_rst)begin
+        for(i = 0 ; i < P_PORTNUM ; i = i + 1)
+            dstOf_8x8port_reg[i] <= 'd0;
+    end
+    else begin
+        for(i = 0 ; i < P_PORTNUM ; i = i + 1)
+            dstOf_8x8port_reg[i] <= dstOf_8x8port[i];
     end
 end
 //8x8模块当中，对于每一个输入端口要到达输出端口都需要结果一级4x4模块，需要记录每一个输入通过4x4模块时会从哪个4x4模块相应的输出端口输出
 integer j;
-always @(posedge i_clk or posedge i_rst)begin
+always @(*)begin
     if(i_rst)begin
         for(j = 0 ; j < P_PORTNUM ; j = j + 1)
-            dstOf_4x4port[j] <= 'd0;
+            dstOf_4x4port[j] = 'd0;
     end
-    else if(ri_8x8in_valid)begin
+    else if(i_8x8in_valid)begin
         for(j = 0 ; j < P_PORTNUM ; j = j + 1)
-            dstOf_4x4port[j] <= dstOf_8x8port[j] >> 1;
+            dstOf_4x4port[j] = dstOf_8x8port[j] >> 1;
     end
     else if(i_config_end)begin
         for(j = 0 ; j < P_PORTNUM ; j = j + 1)
-            dstOf_4x4port[j] <= 'd0;
+            dstOf_4x4port[j] = 'd0;
     end
     else begin
         for(j = 0 ; j < P_PORTNUM ; j = j + 1)
-            dstOf_4x4port[j] <= dstOf_4x4port[j];
+            dstOf_4x4port[j] = dstOf_4x4port_reg[j];
+    end
+end
+always @(posedge i_clk or posedge i_rst) begin
+    if(i_rst)begin
+        for(j = 0 ; j < P_PORTNUM ; j = j + 1)
+            dstOf_4x4port_reg[j] <= 'd0;
+    end
+    else begin
+        for(j = 0 ; j < P_PORTNUM ; j = j + 1)
+            dstOf_4x4port_reg[j] <= dstOf_4x4port[j];
     end
 end
 //请求仲裁有效信号
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)
         r_req_4x4module_out_valid <= 'd0;
-    else if(ri_8x8in_valid_1d)
+    else if(i_8x8in_valid)
         r_req_4x4module_out_valid <= 'd1;
     else if(r_config_continue)
         r_req_4x4module_out_valid <= 'd1;
@@ -224,15 +253,15 @@ end
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)
         r_first_priority <= 'd0;
-    else if(ri_8x8in_valid_1d)
+    else if(i_8x8in_valid)
         r_first_priority <= 'd1;
-    else if(r_config_continue && (ro_switch_grant_2d[0] != ro_switch_grant_3d[0]))
+    else if(r_config_continue && (ro_switch_grant[0] != ro_switch_grant_1d[0]))
         r_first_priority <= 4'b0001;
-    else if(r_config_continue && (ro_switch_grant_2d[1] != ro_switch_grant_3d[1]))
+    else if(r_config_continue && (ro_switch_grant[1] != ro_switch_grant_1d[1]))
         r_first_priority <= 4'b0010;
-    else if(r_config_continue && (ro_switch_grant_2d[2] != ro_switch_grant_3d[2]))
+    else if(r_config_continue && (ro_switch_grant[2] != ro_switch_grant_1d[2]))
         r_first_priority <= 4'b0100;
-    else if(r_config_continue && (ro_switch_grant_2d[3] != ro_switch_grant_3d[3]))
+    else if(r_config_continue && (ro_switch_grant[3] != ro_switch_grant_1d[3]))
         r_first_priority <= 4'b1000;
     else
         r_first_priority <= 'd0;
@@ -242,30 +271,44 @@ end
 genvar k;
 generate
     for(k = 0 ; k < 4 ; k = k+1)begin
-        always @(posedge i_clk or posedge i_rst)begin
+        always @(*)begin
             if(i_rst)begin
-                r_req_4x4module_out0[k] <= 'd0;
-                r_req_4x4module_out1[k] <= 'd0;
-                r_req_4x4module_out2[k] <= 'd0;
-                r_req_4x4module_out3[k] <= 'd0;
+                r_req_4x4module_out0[k] = 'd0;
+                r_req_4x4module_out1[k] = 'd0;
+                r_req_4x4module_out2[k] = 'd0;
+                r_req_4x4module_out3[k] = 'd0;
             end
-            else if(ri_8x8in_valid_1d)begin
-                r_req_4x4module_out0[k] <= (dstOf_4x4port[2*k] == 0) ? 1'b1 : 1'b0;
-                r_req_4x4module_out1[k] <= (dstOf_4x4port[2*k] == 1) ? 1'b1 : 1'b0;
-                r_req_4x4module_out2[k] <= (dstOf_4x4port[2*k] == 2) ? 1'b1 : 1'b0;
-                r_req_4x4module_out3[k] <= (dstOf_4x4port[2*k] == 3) ? 1'b1 : 1'b0;
+            else if(i_8x8in_valid)begin
+                r_req_4x4module_out0[k] = (dstOf_4x4port[2*k] == 0) ? 1'b1 : 1'b0;
+                r_req_4x4module_out1[k] = (dstOf_4x4port[2*k] == 1) ? 1'b1 : 1'b0;
+                r_req_4x4module_out2[k] = (dstOf_4x4port[2*k] == 2) ? 1'b1 : 1'b0;
+                r_req_4x4module_out3[k] = (dstOf_4x4port[2*k] == 3) ? 1'b1 : 1'b0;
             end
             else if(r_config_continue)begin
-                r_req_4x4module_out0[k] <= (ro_switch_grant_2d[k] == P_BAR) ? (dstOf_4x4port[2*k] == 0) : (dstOf_4x4port[2*k + 1] == 0);
-                r_req_4x4module_out1[k] <= (ro_switch_grant_2d[k] == P_BAR) ? (dstOf_4x4port[2*k] == 1) : (dstOf_4x4port[2*k + 1] == 1);
-                r_req_4x4module_out2[k] <= (ro_switch_grant_2d[k] == P_BAR) ? (dstOf_4x4port[2*k] == 2) : (dstOf_4x4port[2*k + 1] == 2);
-                r_req_4x4module_out3[k] <= (ro_switch_grant_2d[k] == P_BAR) ? (dstOf_4x4port[2*k] == 3) : (dstOf_4x4port[2*k + 1] == 3);         
+                r_req_4x4module_out0[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 0) : (dstOf_4x4port[2*k + 1] == 0);
+                r_req_4x4module_out1[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 1) : (dstOf_4x4port[2*k + 1] == 1);
+                r_req_4x4module_out2[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 2) : (dstOf_4x4port[2*k + 1] == 2);
+                r_req_4x4module_out3[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 3) : (dstOf_4x4port[2*k + 1] == 3);         
             end
             else begin
-                r_req_4x4module_out0[k] <= r_req_4x4module_out0[k];
-                r_req_4x4module_out1[k] <= r_req_4x4module_out1[k];
-                r_req_4x4module_out2[k] <= r_req_4x4module_out2[k];
-                r_req_4x4module_out3[k] <= r_req_4x4module_out3[k];
+                r_req_4x4module_out0[k] = r_req_4x4module_out0_reg[k];
+                r_req_4x4module_out1[k] = r_req_4x4module_out1_reg[k];
+                r_req_4x4module_out2[k] = r_req_4x4module_out2_reg[k];
+                r_req_4x4module_out3[k] = r_req_4x4module_out3_reg[k];
+            end
+        end
+        always @(posedge i_clk or posedge i_rst) begin
+            if(i_rst)begin
+                r_req_4x4module_out0_reg[k] = 'd0;
+                r_req_4x4module_out1_reg[k] = 'd0;
+                r_req_4x4module_out2_reg[k] = 'd0;
+                r_req_4x4module_out3_reg[k] = 'd0;
+            end
+            else begin
+                r_req_4x4module_out0_reg[k] = r_req_4x4module_out0[k];
+                r_req_4x4module_out1_reg[k] = r_req_4x4module_out1[k];
+                r_req_4x4module_out2_reg[k] = r_req_4x4module_out2[k];
+                r_req_4x4module_out3_reg[k] = r_req_4x4module_out3[k];
             end
         end
     end
@@ -316,13 +359,13 @@ generate
                 ro_switch_grant[m] <= P_BAR;
             else if(r_switch_grant)
                 ro_switch_grant[m] <= P_BAR;
-            else if(r_req_4x4module_out0[m] && !r_grant_4x4module_out0[m] && r_grant_4x4module_out_valid[0])
+            else if(r_req_4x4module_out0[m] && !w_grant_4x4module_out0[m] && w_grant_4x4module_out_valid[0])
                 ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else if(r_req_4x4module_out1[m] && !r_grant_4x4module_out1[m] && r_grant_4x4module_out_valid[1])
+            else if(r_req_4x4module_out1[m] && !w_grant_4x4module_out1[m] && w_grant_4x4module_out_valid[1])
                 ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else if(r_req_4x4module_out2[m] && !r_grant_4x4module_out2[m] && r_grant_4x4module_out_valid[2])
+            else if(r_req_4x4module_out2[m] && !w_grant_4x4module_out2[m] && w_grant_4x4module_out_valid[2])
                 ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else if(r_req_4x4module_out3[m] && !r_grant_4x4module_out3[m] && r_grant_4x4module_out_valid[3])
+            else if(r_req_4x4module_out3[m] && !w_grant_4x4module_out3[m] && w_grant_4x4module_out_valid[3])
                 ro_switch_grant[m] <= ~ro_switch_grant[m];
             else
                 ro_switch_grant[m] <= ro_switch_grant[m];
@@ -333,7 +376,7 @@ endgenerate
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)
         ro_grant_valid <= 'd0;
-    else if(&r_grant_4x4module_out_valid)
+    else if(&w_grant_4x4module_out_valid)
         ro_grant_valid <= 'd1;
     else
         ro_grant_valid <= 'd0;
@@ -344,12 +387,12 @@ always @(posedge i_clk or posedge i_rst)begin
         ro_switch_grant_1d <= 'd0;
         ro_switch_grant_2d <= 'd0;
         ro_switch_grant_3d <= 'd0;
-        ro_grant_valid_1d  <= 'd0;
+        //ro_grant_valid_1d  <= 'd0;
         ro_grant_valid_2d  <= 'd0;
     end
     else begin
         ro_switch_grant_1d <= ro_switch_grant;
-        ro_grant_valid_1d  <= ro_grant_valid ;
+        //ro_grant_valid_1d  <= ro_grant_valid ;
         ro_switch_grant_2d <= ro_switch_grant_1d;
         ro_switch_grant_3d <= ro_switch_grant_2d;
         ro_grant_valid_2d  <= ro_grant_valid_1d;
@@ -358,11 +401,11 @@ end
 
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)
-        ro_grant_valid_3d <= 'd0;
-    else if(ro_grant_valid_2d && !r_config_continue)
-        ro_grant_valid_3d  <= ro_grant_valid_2d;
+        ro_grant_valid_1d <= 'd0;
+    else if(ro_grant_valid && !r_config_continue)
+        ro_grant_valid_1d  <= ro_grant_valid;
     else
-        ro_grant_valid_3d <= 'd0;
+        ro_grant_valid_1d <= 'd0;
 end
 
 always @(posedge i_clk or posedge i_rst)begin
@@ -370,9 +413,9 @@ always @(posedge i_clk or posedge i_rst)begin
         r_switch_grant <= 'd0;
         r_grant_valid  <= 'd0;
     end
-    else if(!r_config_continue && ro_grant_valid_2d)begin
-        r_switch_grant <= ro_switch_grant_2d;
-        r_grant_valid  <= ro_grant_valid_2d ;
+    else if(!r_config_continue && ro_grant_valid)begin
+        r_switch_grant <= ro_switch_grant;
+        r_grant_valid  <= ro_grant_valid ;
     end
     else begin
         r_switch_grant <= 'd0;
@@ -381,31 +424,37 @@ always @(posedge i_clk or posedge i_rst)begin
 end
 
 //通过输入级的模块配置结果，即可向2个4x4模块下发配置请求ro_4x4_req_1、ro_4x4_req_2
+
+always @(posedge i_clk)begin
+    ro_4x4_req_1_reg <= ro_4x4_req_1;
+    ro_4x4_req_2_reg <= ro_4x4_req_2;
+end
+
 genvar n;
 generate
     for(n = 0 ; n < 4 ; n = n + 1)begin
-        always @(posedge i_clk or posedge i_rst)begin
+        always @(*)begin
             if(i_rst)
-                ro_4x4_req_1[2*n +: 2] <= 'd0;
+                ro_4x4_req_1[2*n +: 2] = 'd0;
             else if(ro_switch_grant[n] == P_BAR && ro_grant_valid)
-                ro_4x4_req_1[2*n +: 2] <= dstOf_4x4port[2*n];
+                ro_4x4_req_1[2*n +: 2] = dstOf_4x4port[2*n];
             else if(ro_switch_grant[n] != P_BAR && ro_grant_valid)
-                ro_4x4_req_1[2*n +: 2] <= dstOf_4x4port[2*n + 1];
+                ro_4x4_req_1[2*n +: 2] = dstOf_4x4port[2*n + 1];
             else
-                ro_4x4_req_1[2*n +: 2] <= ro_4x4_req_1[2*n +: 2];
+                ro_4x4_req_1[2*n +: 2] = ro_4x4_req_1_reg[2*n +: 2];
         end
     end
 
     for(n = 0 ; n < 4 ; n = n + 1)begin
-        always @(posedge i_clk or posedge i_rst)begin
+        always @(*)begin
             if(i_rst)
-                ro_4x4_req_2[2*n +: 2] <= 'd0;
+                ro_4x4_req_2[2*n +: 2] = 'd0;
             else if(ro_switch_grant[n] == P_BAR && ro_grant_valid)
-                ro_4x4_req_2[2*n +: 2] <= dstOf_4x4port[2*n + 1];
+                ro_4x4_req_2[2*n +: 2] = dstOf_4x4port[2*n + 1];
             else if(ro_switch_grant[n] != P_BAR && ro_grant_valid)
-                ro_4x4_req_2[2*n +: 2] <= dstOf_4x4port[2*n];
+                ro_4x4_req_2[2*n +: 2] = dstOf_4x4port[2*n];
             else
-                ro_4x4_req_2[2*n +: 2] <= ro_4x4_req_2[2*n +: 2];
+                ro_4x4_req_2[2*n +: 2] = ro_4x4_req_2_reg[2*n +: 2];
         end
     end
 endgenerate
@@ -419,9 +468,9 @@ always @(posedge i_clk or posedge i_rst)begin
             dstOf_8x8endport[2*t + 1] <= 'd0;
         end
     end   
-    else if(ro_grant_valid_2d && (!r_config_continue))begin
+    else if(ro_grant_valid && (!r_config_continue))begin
         for(t = 0 ; t < 4 ; t = t + 1)begin
-            if(ro_switch_grant_2d[t] == P_BAR)begin
+            if(ro_switch_grant[t] == P_BAR)begin
                 if(dstOf_4x4port[2*t] == 0)
                     dstOf_8x8endport[0] <= dstOf_8x8port[2*t];            
                 else if(dstOf_4x4port[2*t] == 1)
@@ -453,22 +502,22 @@ end
 
 
 
-always @(posedge i_clk or posedge i_rst)begin
+always @(*)begin
     if(i_rst)
-        ro_4x4_valid <= 'd0;
-    else if(!r_config_continue && ro_grant_valid_2d)
-        ro_4x4_valid <= 'd1;
+        ro_4x4_valid = 'd0;
+    else if(!r_config_continue && ro_grant_valid)
+        ro_4x4_valid = 'd1;
     else
-        ro_4x4_valid <= 'd0;
+        ro_4x4_valid = 'd0;
 end
 //继续仲裁
-always @(posedge i_clk or posedge i_rst)begin
+always @(*)begin
     if(i_rst)
-        r_config_continue <= 'd0;
-    else if(ro_grant_valid_1d && (ro_4x4_req_1[1:0] + ro_4x4_req_1[3:2] + ro_4x4_req_1[5:4] + ro_4x4_req_1[7:6] != 'd6))
-        r_config_continue <= 'd1;
+        r_config_continue = 'd0;
+    else if(ro_grant_valid && (ro_4x4_req_1[1:0] + ro_4x4_req_1[3:2] + ro_4x4_req_1[5:4] + ro_4x4_req_1[7:6] != 'd6))
+        r_config_continue = 'd1;
     else
-        r_config_continue <= 'd0;
+        r_config_continue = 'd0;
 end
 
 always @(posedge i_clk or posedge i_rst)begin
@@ -489,7 +538,7 @@ always @(posedge i_clk or posedge i_rst)begin
             ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] <= 'd0;
         end
     end
-    else if(ro_grant_valid_3d)begin
+    else if(ro_grant_valid_1d)begin
         for(out_n = 0 ; out_n < P_PORTNUM ; out_n = out_n + 1)begin
             ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] <= dstOf_8x8endport[out_n];
         end        
@@ -504,7 +553,7 @@ end
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)
         ro_8x8out_valid <= 'd0;
-    else if(ro_grant_valid_3d)
+    else if(ro_grant_valid_1d)
         ro_8x8out_valid <= 'd1;
     else
         ro_8x8out_valid <= 'd0;
