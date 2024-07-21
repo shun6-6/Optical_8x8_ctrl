@@ -25,7 +25,8 @@ module Optical_8x8ctrl_IN#(
     parameter       P_CROSS     =   1'b1,
     parameter       P_DSTWIDTH  =   3   ,
     parameter       P_PORTNUM   =   8   ,
-    parameter       P_SWITCHNUM =   4      
+    parameter       P_SWITCHNUM =   4   ,
+    parameter       P_INTER     =   4   
 )(
     input                                   i_clk           ,
     input                                   i_rst           ,
@@ -54,27 +55,28 @@ module Optical_8x8ctrl_IN#(
 //通过第一个4x4模块后的配置结果，并不完全正确
 reg  [P_SWITCHNUM - 1:0]            r_switch_grant      ;
 reg                                 r_grant_valid       ;
-reg  [P_SWITCHNUM - 1:0]            ro_switch_grant     ;
-reg                                 ro_grant_valid      ;
-reg  [P_SWITCHNUM - 1:0]            ro_switch_grant_1d  ;
-reg  [P_SWITCHNUM - 1:0]            ro_switch_grant_2d  ;
-reg  [P_SWITCHNUM - 1:0]            ro_switch_grant_3d  ;
+reg  [P_SWITCHNUM - 1:0]            ro_switch_grant [P_INTER - 1 : 0]   ;
+reg  [P_SWITCHNUM - 1:0]            ro_switch_grant_reg  [P_INTER - 1 : 0];
+reg                                 ro_grant_valid  [P_INTER - 1 : 0]    ;
+
 reg                                 ro_grant_valid_1d   ;
-reg                                 ro_grant_valid_2d   ;
-reg                                 ro_grant_valid_3d   ;
+
 //通过第二个4x4模块后的配置结果，以此为最终结果
 
-reg                                 r_config_continue   ;
-reg  [2:0]                          r_config_cnt        ;
+reg                                 r_config_continue [P_INTER - 1 : 0]  ;
+reg                                 r_config_continue_reg [P_INTER - 1 : 0]  ;
 
 reg  [P_DSTWIDTH*P_PORTNUM - 1:0]   ro_8x8out_req       ;
+reg  [P_DSTWIDTH*P_PORTNUM - 1:0]   ro_8x8out_req_reg = 0  ;
 reg                                 ro_8x8out_valid     ;
-reg  [7 :0]                         ro_4x4_req_1        ;
-reg  [7 :0]                         ro_4x4_req_2        ;
-reg  [7 :0]                         ro_4x4_req_1_reg    ;
-reg  [7 :0]                         ro_4x4_req_2_reg    ;
+reg  [7 :0]                         ro_4x4_req_1     [P_INTER - 1 : 0]   ;
+reg  [7 :0]                         ro_4x4_req_2     [P_INTER - 1 : 0]   ;
+reg  [7 :0]                         ro_4x4_req_1_reg [P_INTER - 1 : 0]   ;
+reg  [7 :0]                         ro_4x4_req_2_reg [P_INTER - 1 : 0]   ;
 reg                                 ro_4x4_valid        ;
-
+reg  [7 :0]                         ro_4x4_req_1_1d     ;
+reg  [7 :0]                         ro_4x4_req_2_1d     ;
+reg                                 ro_4x4_valid_1d = 0    ;
 reg                                 ri_8x8in_valid      ;
 reg                                 ri_8x8in_valid_1d   ;
 reg  [P_DSTWIDTH*P_PORTNUM - 1:0]   ri_8x8in_req        ;   
@@ -95,87 +97,35 @@ reg  [P_DSTWIDTH-2 :0]  dstOf_4x4port_reg [P_PORTNUM - 1 :0];
 //讨论三：（失败）只要一次配置完后，第一个4x4模块存在任何一个端口没有数据输出时，即掉反优先级顺序继续仲裁
 //讨论四：（成功）固定优先级控制器，每次仲裁结果当中，仲裁失败从而改变配置的模块在下一次仲裁当中具有最高优先级
 //请求仲裁有效信号
-reg                     r_req_4x4module_out_valid       ;
-reg  [3 :0]             r_first_priority                ;
-reg  [3 :0]             r_req_4x4module_out0            ;
-reg  [3 :0]             r_req_4x4module_out1            ;
-reg  [3 :0]             r_req_4x4module_out2            ;
-reg  [3 :0]             r_req_4x4module_out3            ;
-reg  [3 :0]             r_req_4x4module_out0_reg        ;
-reg  [3 :0]             r_req_4x4module_out1_reg        ;
-reg  [3 :0]             r_req_4x4module_out2_reg        ;
-reg  [3 :0]             r_req_4x4module_out3_reg        ;
-
-wire [3 :0]             w_req_4x4module_out0            ;
-wire [3 :0]             w_req_4x4module_out1            ;
-wire [3 :0]             w_req_4x4module_out2            ;
-wire [3 :0]             w_req_4x4module_out3            ;
+reg                     r_req_4x4module_out_valid [P_INTER - 1 : 0]      ;
+reg  [3 :0]             r_first_priority  [P_INTER - 1 : 0]               ;
+reg  [3 :0]             r_first_priority_reg  [P_INTER - 1 : 0]               ;
+reg  [3 :0]             r_req_4x4module_out0  [P_INTER - 1 : 0]          ;
+reg  [3 :0]             r_req_4x4module_out1  [P_INTER - 1 : 0]          ;
+reg  [3 :0]             r_req_4x4module_out2  [P_INTER - 1 : 0]          ;
+reg  [3 :0]             r_req_4x4module_out3  [P_INTER - 1 : 0]          ;
+reg  [3 :0]             r_req_4x4module_out0_reg [P_INTER - 1 : 0]       ;
+reg  [3 :0]             r_req_4x4module_out1_reg [P_INTER - 1 : 0]       ;
+reg  [3 :0]             r_req_4x4module_out2_reg [P_INTER - 1 : 0]       ;
+reg  [3 :0]             r_req_4x4module_out3_reg [P_INTER - 1 : 0]       ;
+reg  [2 :0]             r_config_cnt [P_INTER - 1 : 0];
+reg  [2 :0]             r_config_cnt_reg [P_INTER - 1 : 0];
 //第一个4x4模块的每一个输出端口返回端口0 2 4 6的授权，得到授权的模块即可配置为bar模式，否则为cross
-wire [3 :0]             w_grant_4x4module_out0          ;
-wire [3 :0]             w_grant_4x4module_out1          ;
-wire [3 :0]             w_grant_4x4module_out2          ;
-wire [3 :0]             w_grant_4x4module_out3          ;
-wire [3 :0]             w_grant_4x4module_out_valid     ;//指示授权有效信号
-reg  [3 :0]             r_grant_4x4module_out0          ;
-reg  [3 :0]             r_grant_4x4module_out1          ;
-reg  [3 :0]             r_grant_4x4module_out2          ;
-reg  [3 :0]             r_grant_4x4module_out3          ;
-reg  [3 :0]             r_grant_4x4module_out_valid     ;//指示授权有效信号
-
+wire [3 :0]             w_grant_4x4module_out0       [P_INTER - 1 : 0]  ;
+wire [3 :0]             w_grant_4x4module_out1       [P_INTER - 1 : 0]  ;
+wire [3 :0]             w_grant_4x4module_out2       [P_INTER - 1 : 0]  ;
+wire [3 :0]             w_grant_4x4module_out3       [P_INTER - 1 : 0]  ;
+wire [3 :0]             w_grant_4x4module_out_valid  [P_INTER - 1 : 0]  ;//指示授权有效信号
 /***************component*************/
-FIXED_Arbiter#(
-    .P_CHANNEL_NUM      (4                          )
-)FIXED_Arbiter_u0(
-    .i_clk              (i_clk                      ),
-    .i_rst              (i_rst                      ),
-    .i_req              (r_req_4x4module_out0       ),
-    .i_first_priority   (r_first_priority           ),
-    .i_req_valid        (r_req_4x4module_out_valid  ),
-    .o_grant            (w_grant_4x4module_out0     ),
-    .o_grant_valid      (w_grant_4x4module_out_valid[0])  
-);
-FIXED_Arbiter#(
-    .P_CHANNEL_NUM      (4                          )
-)FIXED_Arbiter_u1(
-    .i_clk              (i_clk                      ),
-    .i_rst              (i_rst                      ),
-    .i_req              (r_req_4x4module_out1       ),
-    .i_first_priority   (r_first_priority           ),
-    .i_req_valid        (r_req_4x4module_out_valid  ),
-    .o_grant            (w_grant_4x4module_out1     ),
-    .o_grant_valid      (w_grant_4x4module_out_valid[1]) 
-);
-FIXED_Arbiter#(
-    .P_CHANNEL_NUM      (4                          )
-)FIXED_Arbiter_u2(
-    .i_clk              (i_clk                      ),
-    .i_rst              (i_rst                      ),
-    .i_req              (r_req_4x4module_out2       ),
-    .i_first_priority   (r_first_priority           ),
-    .i_req_valid        (r_req_4x4module_out_valid  ),
-    .o_grant            (w_grant_4x4module_out2     ),
-    .o_grant_valid      (w_grant_4x4module_out_valid[2]) 
-);
-FIXED_Arbiter#(
-    .P_CHANNEL_NUM      (4                          )
-)FIXED_Arbiter_u3(
-    .i_clk              (i_clk                      ),
-    .i_rst              (i_rst                      ),
-    .i_req              (r_req_4x4module_out3       ),
-    .i_first_priority   (r_first_priority           ),
-    .i_req_valid        (r_req_4x4module_out_valid  ),
-    .o_grant            (w_grant_4x4module_out3     ),
-    .o_grant_valid      (w_grant_4x4module_out_valid[3])  
-);
 
 /***************assign****************/
 assign o_switch_grant   = r_switch_grant    ;
 assign o_grant_valid    = r_grant_valid     ;
 assign o_8x8out_req     = ro_8x8out_req     ;
-assign o_8x8out_valid   = ro_8x8out_valid   ;
-assign o_4x4_req_1      = ro_4x4_req_1      ;
-assign o_4x4_req_2      = ro_4x4_req_2      ;
-assign o_4x4_valid      = ro_4x4_valid      ;
+assign o_8x8out_valid   = ro_4x4_valid_1d   ;
+assign o_4x4_req_1      = ro_4x4_req_1_1d   ;
+assign o_4x4_req_2      = ro_4x4_req_2_1d   ;
+assign o_4x4_valid      = ro_4x4_valid_1d   ;
 
 /***************always****************/
 //8x8模块当中，对于每一个输入端口都对应一个要输出的端口，通过dstOf_8x8port记录
@@ -238,105 +188,255 @@ always @(posedge i_clk or posedge i_rst) begin
             dstOf_4x4port_reg[j] <= dstOf_4x4port[j];
     end
 end
-//请求仲裁有效信号
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)
-        r_req_4x4module_out_valid <= 'd0;
-    else if(i_8x8in_valid)
-        r_req_4x4module_out_valid <= 'd1;
-    else if(r_config_continue)
-        r_req_4x4module_out_valid <= 'd1;
-    else
-        r_req_4x4module_out_valid <= 'd0;
-end
 
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)
-        r_first_priority <= 'd0;
-    else if(i_8x8in_valid)
-        r_first_priority <= 'd1;
-    else if(r_config_continue && (ro_switch_grant[0] != ro_switch_grant_1d[0]))
-        r_first_priority <= 4'b0001;
-    else if(r_config_continue && (ro_switch_grant[1] != ro_switch_grant_1d[1]))
-        r_first_priority <= 4'b0010;
-    else if(r_config_continue && (ro_switch_grant[2] != ro_switch_grant_1d[2]))
-        r_first_priority <= 4'b0100;
-    else if(r_config_continue && (ro_switch_grant[3] != ro_switch_grant_1d[3]))
-        r_first_priority <= 4'b1000;
-    else
-        r_first_priority <= 'd0;
-end
-
-//仲裁请求
-genvar k;
+/////////////////////////////////////////////////////////////////
+//通过generate实现多次仲裁，一个时钟周期得出最终的仲裁结果，为了避免loop，所有相关信号都使用一维数组声明三次，进行后续迭代
+/////////////////////////////////////////////////////////////////
+genvar m;
+genvar gen_i;
 generate
-    for(k = 0 ; k < 4 ; k = k+1)begin
+    for(gen_i = 0 ; gen_i < P_INTER ; gen_i = gen_i + 1)begin
         always @(*)begin
-            if(i_rst)begin
-                r_req_4x4module_out0[k] = 'd0;
-                r_req_4x4module_out1[k] = 'd0;
-                r_req_4x4module_out2[k] = 'd0;
-                r_req_4x4module_out3[k] = 'd0;
+            if(i_rst)
+                r_first_priority[gen_i] = 4'b0001;
+            else if(r_grant_valid)
+                r_first_priority[gen_i] = 4'b0001;
+            else if(i_8x8in_valid && gen_i == 0)
+                r_first_priority[gen_i] = 4'b0001;
+            else if(r_config_continue[gen_i - 1] && (ro_switch_grant[gen_i][0] != ro_switch_grant[gen_i - 1][0]) && gen_i > 0)
+                r_first_priority[gen_i] = 4'b0001;
+            else if(r_config_continue[gen_i - 1] && (ro_switch_grant[gen_i][1] != ro_switch_grant[gen_i - 1][1]) && gen_i > 0)
+                r_first_priority[gen_i] = 4'b0010;
+            else if(r_config_continue[gen_i - 1] && (ro_switch_grant[gen_i][2] != ro_switch_grant[gen_i - 1][2]) && gen_i > 0)
+                r_first_priority[gen_i] = 4'b0100;
+            else if(r_config_continue[gen_i - 1] && (ro_switch_grant[gen_i][3] != ro_switch_grant[gen_i - 1][3]) && gen_i > 0)
+                r_first_priority[gen_i] = 4'b1000;
+            else
+                r_first_priority[gen_i] = 4'b0001;
+        end
+        always @(posedge i_clk or posedge i_rst)begin
+            if(i_rst)
+                r_first_priority_reg[gen_i] <= 4'b0001;
+            else
+                r_first_priority_reg[gen_i] <= r_first_priority[gen_i];
+        end
+
+        //得到仲裁结果后即对输入级的四个2x2模块的配置
+        for(m = 0 ; m < 4 ; m = m + 1)begin
+            always @(*)begin
+                if(i_rst || r_grant_valid)
+                    ro_switch_grant[gen_i][m] = P_BAR;
+                else if(gen_i == 0)
+                    ro_switch_grant[gen_i][m] = P_BAR;
+                else if(gen_i > 0 && r_req_4x4module_out0[gen_i-1][m] && !w_grant_4x4module_out0[gen_i-1][m] && w_grant_4x4module_out_valid[gen_i-1][0])
+                    ro_switch_grant[gen_i][m] = ~ro_switch_grant[gen_i-1][m];
+                else if(gen_i > 0 && r_req_4x4module_out1[gen_i-1][m] && !w_grant_4x4module_out1[gen_i-1][m] && w_grant_4x4module_out_valid[gen_i-1][1])
+                    ro_switch_grant[gen_i][m] = ~ro_switch_grant[gen_i-1][m];
+                else if(gen_i > 0 && r_req_4x4module_out2[gen_i-1][m] && !w_grant_4x4module_out2[gen_i-1][m] && w_grant_4x4module_out_valid[gen_i-1][2])
+                    ro_switch_grant[gen_i][m] = ~ro_switch_grant[gen_i-1][m];
+                else if(gen_i > 0 && r_req_4x4module_out3[gen_i-1][m] && !w_grant_4x4module_out3[gen_i-1][m] && w_grant_4x4module_out_valid[gen_i-1][3])
+                    ro_switch_grant[gen_i][m] = ~ro_switch_grant[gen_i-1][m];
+                else
+                    ro_switch_grant[gen_i][m] = ro_switch_grant[gen_i-1][m];
             end
-            else if(i_8x8in_valid)begin
-                r_req_4x4module_out0[k] = (dstOf_4x4port[2*k] == 0) ? 1'b1 : 1'b0;
-                r_req_4x4module_out1[k] = (dstOf_4x4port[2*k] == 1) ? 1'b1 : 1'b0;
-                r_req_4x4module_out2[k] = (dstOf_4x4port[2*k] == 2) ? 1'b1 : 1'b0;
-                r_req_4x4module_out3[k] = (dstOf_4x4port[2*k] == 3) ? 1'b1 : 1'b0;
-            end
-            else if(r_config_continue)begin
-                r_req_4x4module_out0[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 0) : (dstOf_4x4port[2*k + 1] == 0);
-                r_req_4x4module_out1[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 1) : (dstOf_4x4port[2*k + 1] == 1);
-                r_req_4x4module_out2[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 2) : (dstOf_4x4port[2*k + 1] == 2);
-                r_req_4x4module_out3[k] = (ro_switch_grant[k] == P_BAR) ? (dstOf_4x4port[2*k] == 3) : (dstOf_4x4port[2*k + 1] == 3);         
-            end
-            else begin
-                r_req_4x4module_out0[k] = r_req_4x4module_out0_reg[k];
-                r_req_4x4module_out1[k] = r_req_4x4module_out1_reg[k];
-                r_req_4x4module_out2[k] = r_req_4x4module_out2_reg[k];
-                r_req_4x4module_out3[k] = r_req_4x4module_out3_reg[k];
+            always @(posedge i_clk)begin
+                if(i_rst)
+                    ro_switch_grant_reg[gen_i][m] <= 'd0;
+                else
+                    ro_switch_grant_reg[gen_i][m] <= ro_switch_grant[gen_i][m];
             end
         end
-        always @(posedge i_clk or posedge i_rst) begin
-            if(i_rst)begin
-                r_req_4x4module_out0_reg[k] = 'd0;
-                r_req_4x4module_out1_reg[k] = 'd0;
-                r_req_4x4module_out2_reg[k] = 'd0;
-                r_req_4x4module_out3_reg[k] = 'd0;
+    
+        for(m = 0 ; m < 4 ; m = m + 1)begin
+            always @(*)begin
+                if(i_rst || r_grant_valid)begin
+                    r_req_4x4module_out0[gen_i][m] = 'd0;
+                    r_req_4x4module_out1[gen_i][m] = 'd0;
+                    r_req_4x4module_out2[gen_i][m] = 'd0;
+                    r_req_4x4module_out3[gen_i][m] = 'd0;
+                end
+                else if(i_8x8in_valid && gen_i == 0)begin
+                    r_req_4x4module_out0[gen_i][m] = (dstOf_4x4port[2*m] == 0) ? 1'b1 : 1'b0;
+                    r_req_4x4module_out1[gen_i][m] = (dstOf_4x4port[2*m] == 1) ? 1'b1 : 1'b0;
+                    r_req_4x4module_out2[gen_i][m] = (dstOf_4x4port[2*m] == 2) ? 1'b1 : 1'b0;
+                    r_req_4x4module_out3[gen_i][m] = (dstOf_4x4port[2*m] == 3) ? 1'b1 : 1'b0;
+                end
+                else if(r_config_continue[gen_i - 1] && gen_i > 0)begin
+                    r_req_4x4module_out0[gen_i][m] = (ro_switch_grant[gen_i][m] == P_BAR) ? (dstOf_4x4port[2*m] == 0) : (dstOf_4x4port[2*m + 1] == 0);
+                    r_req_4x4module_out1[gen_i][m] = (ro_switch_grant[gen_i][m] == P_BAR) ? (dstOf_4x4port[2*m] == 1) : (dstOf_4x4port[2*m + 1] == 1);
+                    r_req_4x4module_out2[gen_i][m] = (ro_switch_grant[gen_i][m] == P_BAR) ? (dstOf_4x4port[2*m] == 2) : (dstOf_4x4port[2*m + 1] == 2);
+                    r_req_4x4module_out3[gen_i][m] = (ro_switch_grant[gen_i][m] == P_BAR) ? (dstOf_4x4port[2*m] == 3) : (dstOf_4x4port[2*m + 1] == 3);         
+                end
+                else if(!r_config_continue[gen_i - 1] && gen_i > 0) begin
+                    r_req_4x4module_out0[gen_i][m] = r_req_4x4module_out0[gen_i-1][m];
+                    r_req_4x4module_out1[gen_i][m] = r_req_4x4module_out1[gen_i-1][m];
+                    r_req_4x4module_out2[gen_i][m] = r_req_4x4module_out2[gen_i-1][m];
+                    r_req_4x4module_out3[gen_i][m] = r_req_4x4module_out3[gen_i-1][m];
+                end
+                else begin
+                    r_req_4x4module_out0[gen_i][m] = r_req_4x4module_out0_reg[gen_i][m];
+                    r_req_4x4module_out1[gen_i][m] = r_req_4x4module_out1_reg[gen_i][m];
+                    r_req_4x4module_out2[gen_i][m] = r_req_4x4module_out2_reg[gen_i][m];
+                    r_req_4x4module_out3[gen_i][m] = r_req_4x4module_out3_reg[gen_i][m];                    
+                end
             end
-            else begin
-                r_req_4x4module_out0_reg[k] = r_req_4x4module_out0[k];
-                r_req_4x4module_out1_reg[k] = r_req_4x4module_out1[k];
-                r_req_4x4module_out2_reg[k] = r_req_4x4module_out2[k];
-                r_req_4x4module_out3_reg[k] = r_req_4x4module_out3[k];
+            always @(posedge i_clk or posedge i_rst) begin
+                if(i_rst)begin
+                    r_req_4x4module_out0_reg[gen_i][m] <= 'd0;
+                    r_req_4x4module_out1_reg[gen_i][m] <= 'd0;
+                    r_req_4x4module_out2_reg[gen_i][m] <= 'd0;
+                    r_req_4x4module_out3_reg[gen_i][m] <= 'd0;
+                end
+                else begin
+                    r_req_4x4module_out0_reg[gen_i][m] <= r_req_4x4module_out0[gen_i][m];
+                    r_req_4x4module_out1_reg[gen_i][m] <= r_req_4x4module_out1[gen_i][m];
+                    r_req_4x4module_out2_reg[gen_i][m] <= r_req_4x4module_out2[gen_i][m];
+                    r_req_4x4module_out3_reg[gen_i][m] <= r_req_4x4module_out3[gen_i][m];
+                end
             end
         end
+
+        //请求仲裁有效信号
+        always @(*)begin
+            if(i_rst || r_grant_valid)
+                r_req_4x4module_out_valid[gen_i] = 'd0;
+            else if(i_8x8in_valid && gen_i == 0)
+                r_req_4x4module_out_valid[gen_i] = 'd1;
+            else if(r_config_continue[gen_i - 1] && gen_i > 0)
+                r_req_4x4module_out_valid[gen_i] = 'd1;
+            else
+                r_req_4x4module_out_valid[gen_i] = 'd0;
+        end
+
+        always @(*)begin
+            if(i_rst || r_grant_valid)
+                ro_grant_valid[gen_i] = 'd0;
+            else if(&w_grant_4x4module_out_valid[gen_i])
+                ro_grant_valid[gen_i] = 'd1;
+            else
+                ro_grant_valid[gen_i] = 'd0;
+        end
+
+        //继续仲裁
+        always @(*)begin
+            if(i_rst || r_grant_valid)
+                r_config_continue[gen_i] = 'd0;
+            else if(ro_grant_valid[gen_i] && (ro_4x4_req_1[gen_i][1:0] + ro_4x4_req_1[gen_i][3:2] + ro_4x4_req_1[gen_i][5:4] + ro_4x4_req_1[gen_i][7:6] != 'd6))
+                r_config_continue[gen_i] = 'd1;
+            else if((ro_4x4_req_1[gen_i][1:0] + ro_4x4_req_1[gen_i][3:2] + ro_4x4_req_1[gen_i][5:4] + ro_4x4_req_1[gen_i][7:6] == 'd6) 
+                    && ((ro_4x4_req_1[gen_i][1:0] == ro_4x4_req_1[gen_i][3:2]) || (ro_4x4_req_1[gen_i][1:0] == ro_4x4_req_1[gen_i][5:4])
+                    ||  (ro_4x4_req_1[gen_i][1:0] == ro_4x4_req_1[gen_i][7:6]) || (ro_4x4_req_1[gen_i][3:2] == ro_4x4_req_1[gen_i][5:4])
+                    ||  (ro_4x4_req_1[gen_i][3:2] == ro_4x4_req_1[gen_i][7:6]) || (ro_4x4_req_1[gen_i][5:4] == ro_4x4_req_1[gen_i][7:6])))
+                r_config_continue[gen_i] = 'd1;
+            else
+                r_config_continue[gen_i] = r_config_continue_reg[gen_i];
+        end
+
+        always @(posedge i_clk or posedge i_rst)begin
+            if(i_rst)
+                r_config_continue_reg[gen_i] <= 'd0;
+            else
+                r_config_continue_reg[gen_i] <= r_config_continue[gen_i];
+        end
+
+        //记录仲裁次数
+        always @(*)begin
+            if(i_rst || r_grant_valid)
+                r_config_cnt[gen_i] = 'd0;
+            else if(gen_i == 0)
+                r_config_cnt[gen_i] = 'd0;
+            else if(gen_i > 0 && r_config_continue[gen_i - 1] && ro_grant_valid[gen_i - 1])
+                r_config_cnt[gen_i] = r_config_cnt[gen_i - 1] + 1;
+            else if(gen_i > 0 && !r_config_continue[gen_i - 1] && ro_grant_valid[gen_i - 1])
+                r_config_cnt[gen_i] = r_config_cnt[gen_i - 1];
+            else
+                r_config_cnt[gen_i] = r_config_cnt[gen_i - 1];
+        end
+        always @(posedge i_clk or posedge i_rst)begin
+            if(i_rst)
+                r_config_cnt_reg[gen_i] <= 'd0;
+            else
+                r_config_cnt_reg[gen_i] <= r_config_cnt[gen_i];
+        end
+
+        //更新中间级4x4模块的请求状态
+        for(m = 0 ; m < 4 ; m = m + 1)begin
+            always @(*)begin
+                if(i_rst || r_grant_valid)
+                    ro_4x4_req_1[gen_i][2*m +: 2] = 'd0;
+                else if(ro_switch_grant[gen_i][m] == P_BAR && ro_grant_valid[gen_i])
+                    ro_4x4_req_1[gen_i][2*m +: 2] = dstOf_4x4port[2*m];
+                else if(ro_switch_grant[gen_i][m] != P_BAR && ro_grant_valid[gen_i])
+                    ro_4x4_req_1[gen_i][2*m +: 2] = dstOf_4x4port[2*m + 1];
+                else
+                    ro_4x4_req_1[gen_i][2*m +: 2] = ro_4x4_req_1_reg[gen_i][2*m +: 2];
+            end
+            always @(posedge i_clk)begin
+                ro_4x4_req_1_reg[gen_i][2*m +: 2] <= ro_4x4_req_1[gen_i][2*m +: 2];
+            end
+
+            always @(*)begin
+                if(i_rst || r_grant_valid)
+                    ro_4x4_req_2[gen_i][2*m +: 2] = 'd0;
+                else if(ro_switch_grant[gen_i][m] == P_BAR && ro_grant_valid[gen_i])
+                    ro_4x4_req_2[gen_i][2*m +: 2] = dstOf_4x4port[2*m + 1];
+                else if(ro_switch_grant[gen_i][m] != P_BAR && ro_grant_valid[gen_i])
+                    ro_4x4_req_2[gen_i][2*m +: 2] = dstOf_4x4port[2*m];
+                else
+                    ro_4x4_req_2[gen_i][2*m +: 2] = ro_4x4_req_2_reg[gen_i][2*m +: 2];
+            end
+            always @(posedge i_clk)begin
+                ro_4x4_req_2_reg[gen_i][2*m +: 2] <= ro_4x4_req_2[gen_i][2*m +: 2];
+            end
+
+        end
+
+        FIXED_Arbiter#(
+            .P_CHANNEL_NUM      (4                                      )
+        )FIXED_Arbiter_u0(      
+            .i_clk              (i_clk                                  ),
+            .i_rst              (i_rst                                  ),
+            .i_req              (r_req_4x4module_out0[gen_i]            ),
+            .i_first_priority   (r_first_priority[gen_i]                ),
+            .i_req_valid        (r_req_4x4module_out_valid[gen_i]       ),
+            .o_grant            (w_grant_4x4module_out0[gen_i]          ),
+            .o_grant_valid      (w_grant_4x4module_out_valid[gen_i][0]  )  
+        );
+        FIXED_Arbiter#(
+            .P_CHANNEL_NUM      (4                          )
+        )FIXED_Arbiter_u1(
+            .i_clk              (i_clk                      ),
+            .i_rst              (i_rst                      ),
+            .i_req              (r_req_4x4module_out1[gen_i]            ),
+            .i_first_priority   (r_first_priority[gen_i]                ),
+            .i_req_valid        (r_req_4x4module_out_valid[gen_i]       ),
+            .o_grant            (w_grant_4x4module_out1[gen_i]          ),
+            .o_grant_valid      (w_grant_4x4module_out_valid[gen_i][1]  ) 
+        );
+        FIXED_Arbiter#(
+            .P_CHANNEL_NUM      (4                          )
+        )FIXED_Arbiter_u2(
+            .i_clk              (i_clk                      ),
+            .i_rst              (i_rst                      ),
+            .i_req              (r_req_4x4module_out2[gen_i]            ),
+            .i_first_priority   (r_first_priority[gen_i]                ),
+            .i_req_valid        (r_req_4x4module_out_valid[gen_i]       ),
+            .o_grant            (w_grant_4x4module_out2[gen_i]          ),
+            .o_grant_valid      (w_grant_4x4module_out_valid[gen_i][2]  ) 
+        );
+        FIXED_Arbiter#(
+            .P_CHANNEL_NUM      (4                          )
+        )FIXED_Arbiter_u3(
+            .i_clk              (i_clk                      ),
+            .i_rst              (i_rst                      ),
+            .i_req              (r_req_4x4module_out3[gen_i]            ),
+            .i_first_priority   (r_first_priority[gen_i]                ),
+            .i_req_valid        (r_req_4x4module_out_valid[gen_i]       ),
+            .o_grant            (w_grant_4x4module_out3[gen_i]          ),
+            .o_grant_valid      (w_grant_4x4module_out_valid[gen_i][3]  ) 
+        );
     end
 endgenerate
-
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)begin
-        r_grant_4x4module_out0 <= 'd0;
-        r_grant_4x4module_out1 <= 'd0;
-        r_grant_4x4module_out2 <= 'd0;
-        r_grant_4x4module_out3 <= 'd0;
-        r_grant_4x4module_out_valid <= 'd0;
-    end
-    else if(&w_grant_4x4module_out_valid)begin
-        r_grant_4x4module_out0 <= w_grant_4x4module_out0;
-        r_grant_4x4module_out1 <= w_grant_4x4module_out1;
-        r_grant_4x4module_out2 <= w_grant_4x4module_out2;
-        r_grant_4x4module_out3 <= w_grant_4x4module_out3;
-        r_grant_4x4module_out_valid <= w_grant_4x4module_out_valid;
-    end
-    else begin
-        r_grant_4x4module_out0 <= r_grant_4x4module_out0;
-        r_grant_4x4module_out1 <= r_grant_4x4module_out1;
-        r_grant_4x4module_out2 <= r_grant_4x4module_out2;
-        r_grant_4x4module_out3 <= r_grant_4x4module_out3;
-        r_grant_4x4module_out_valid <= 'd0;
-    end
-end
 
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)begin
@@ -350,60 +450,12 @@ always @(posedge i_clk or posedge i_rst)begin
         ri_8x8in_req <= i_8x8in_req;      
     end
 end
-//得到仲裁结果后即对输入级的四个2x2模块的配置
-genvar m;
-generate
-    for(m = 0 ; m < 4 ; m = m + 1)begin
-        always @(posedge i_clk or posedge i_rst)begin
-            if(i_rst)
-                ro_switch_grant[m] <= P_BAR;
-            else if(r_switch_grant)
-                ro_switch_grant[m] <= P_BAR;
-            else if(r_req_4x4module_out0[m] && !w_grant_4x4module_out0[m] && w_grant_4x4module_out_valid[0])
-                ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else if(r_req_4x4module_out1[m] && !w_grant_4x4module_out1[m] && w_grant_4x4module_out_valid[1])
-                ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else if(r_req_4x4module_out2[m] && !w_grant_4x4module_out2[m] && w_grant_4x4module_out_valid[2])
-                ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else if(r_req_4x4module_out3[m] && !w_grant_4x4module_out3[m] && w_grant_4x4module_out_valid[3])
-                ro_switch_grant[m] <= ~ro_switch_grant[m];
-            else
-                ro_switch_grant[m] <= ro_switch_grant[m];
-        end
-    end
-endgenerate
-
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)
-        ro_grant_valid <= 'd0;
-    else if(&w_grant_4x4module_out_valid)
-        ro_grant_valid <= 'd1;
-    else
-        ro_grant_valid <= 'd0;
-end
-
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)begin
-        ro_switch_grant_1d <= 'd0;
-        ro_switch_grant_2d <= 'd0;
-        ro_switch_grant_3d <= 'd0;
-        //ro_grant_valid_1d  <= 'd0;
-        ro_grant_valid_2d  <= 'd0;
-    end
-    else begin
-        ro_switch_grant_1d <= ro_switch_grant;
-        //ro_grant_valid_1d  <= ro_grant_valid ;
-        ro_switch_grant_2d <= ro_switch_grant_1d;
-        ro_switch_grant_3d <= ro_switch_grant_2d;
-        ro_grant_valid_2d  <= ro_grant_valid_1d;
-    end
-end
 
 always @(posedge i_clk or posedge i_rst)begin
     if(i_rst)
         ro_grant_valid_1d <= 'd0;
-    else if(ro_grant_valid && !r_config_continue)
-        ro_grant_valid_1d  <= ro_grant_valid;
+    else if(ro_grant_valid[r_config_cnt[P_INTER - 1]] && !r_config_continue[r_config_cnt[P_INTER - 1]])
+        ro_grant_valid_1d  <= ro_grant_valid[r_config_cnt[P_INTER - 1]];
     else
         ro_grant_valid_1d <= 'd0;
 end
@@ -413,9 +465,9 @@ always @(posedge i_clk or posedge i_rst)begin
         r_switch_grant <= 'd0;
         r_grant_valid  <= 'd0;
     end
-    else if(!r_config_continue && ro_grant_valid)begin
-        r_switch_grant <= ro_switch_grant;
-        r_grant_valid  <= ro_grant_valid ;
+    else if(!r_config_continue[r_config_cnt[P_INTER - 1]] && ro_grant_valid[r_config_cnt[P_INTER - 1]])begin
+        r_switch_grant <= ro_switch_grant[r_config_cnt[P_INTER - 1]];
+        r_grant_valid  <= ro_grant_valid[r_config_cnt[P_INTER - 1]] ;
     end
     else begin
         r_switch_grant <= 'd0;
@@ -423,41 +475,25 @@ always @(posedge i_clk or posedge i_rst)begin
     end
 end
 
-//通过输入级的模块配置结果，即可向2个4x4模块下发配置请求ro_4x4_req_1、ro_4x4_req_2
+always @(*)begin
+    if(i_rst)
+        ro_4x4_valid = 'd0;
+    else if(!r_config_continue[r_config_cnt[P_INTER - 1]] && ro_grant_valid[r_config_cnt[P_INTER - 1]])
+        ro_4x4_valid = 'd1;
+    else
+        ro_4x4_valid = 'd0;
+end
 
 always @(posedge i_clk)begin
-    ro_4x4_req_1_reg <= ro_4x4_req_1;
-    ro_4x4_req_2_reg <= ro_4x4_req_2;
+    ro_4x4_valid_1d <= ro_4x4_valid;
 end
 
-genvar n;
-generate
-    for(n = 0 ; n < 4 ; n = n + 1)begin
-        always @(*)begin
-            if(i_rst)
-                ro_4x4_req_1[2*n +: 2] = 'd0;
-            else if(ro_switch_grant[n] == P_BAR && ro_grant_valid)
-                ro_4x4_req_1[2*n +: 2] = dstOf_4x4port[2*n];
-            else if(ro_switch_grant[n] != P_BAR && ro_grant_valid)
-                ro_4x4_req_1[2*n +: 2] = dstOf_4x4port[2*n + 1];
-            else
-                ro_4x4_req_1[2*n +: 2] = ro_4x4_req_1_reg[2*n +: 2];
-        end
-    end
+always @(posedge i_clk)begin
+    ro_4x4_req_1_1d <= ro_4x4_req_1 [r_config_cnt[P_INTER - 1]];
+    ro_4x4_req_2_1d <= ro_4x4_req_2 [r_config_cnt[P_INTER - 1]];
+end
 
-    for(n = 0 ; n < 4 ; n = n + 1)begin
-        always @(*)begin
-            if(i_rst)
-                ro_4x4_req_2[2*n +: 2] = 'd0;
-            else if(ro_switch_grant[n] == P_BAR && ro_grant_valid)
-                ro_4x4_req_2[2*n +: 2] = dstOf_4x4port[2*n + 1];
-            else if(ro_switch_grant[n] != P_BAR && ro_grant_valid)
-                ro_4x4_req_2[2*n +: 2] = dstOf_4x4port[2*n];
-            else
-                ro_4x4_req_2[2*n +: 2] = ro_4x4_req_2_reg[2*n +: 2];
-        end
-    end
-endgenerate
+
 //同时根据输入级模块的配置结果，可以得出输出级模块的输出请求，从而配置输出级模块的4个2x2模块
 integer t;
 
@@ -468,9 +504,9 @@ always @(posedge i_clk or posedge i_rst)begin
             dstOf_8x8endport[2*t + 1] <= 'd0;
         end
     end   
-    else if(ro_grant_valid && (!r_config_continue))begin
+    else if(ro_grant_valid[r_config_cnt[P_INTER - 1]] && (!r_config_continue[r_config_cnt[P_INTER - 1]]))begin
         for(t = 0 ; t < 4 ; t = t + 1)begin
-            if(ro_switch_grant[t] == P_BAR)begin
+            if(ro_switch_grant[r_config_cnt[P_INTER - 1]][t] == P_BAR)begin
                 if(dstOf_4x4port[2*t] == 0)
                     dstOf_8x8endport[0] <= dstOf_8x8port[2*t];            
                 else if(dstOf_4x4port[2*t] == 1)
@@ -500,63 +536,29 @@ always @(posedge i_clk or posedge i_rst)begin
     end   
 end
 
-
-
-always @(*)begin
-    if(i_rst)
-        ro_4x4_valid = 'd0;
-    else if(!r_config_continue && ro_grant_valid)
-        ro_4x4_valid = 'd1;
-    else
-        ro_4x4_valid = 'd0;
-end
-//继续仲裁
-always @(*)begin
-    if(i_rst)
-        r_config_continue = 'd0;
-    else if(ro_grant_valid && (ro_4x4_req_1[1:0] + ro_4x4_req_1[3:2] + ro_4x4_req_1[5:4] + ro_4x4_req_1[7:6] != 'd6))
-        r_config_continue = 'd1;
-    else
-        r_config_continue = 'd0;
-end
-
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)
-        r_config_cnt <= 'd0;
-    else if(ro_grant_valid_1d && (ro_4x4_req_1[1:0] + ro_4x4_req_1[3:2] + ro_4x4_req_1[5:4] + ro_4x4_req_1[7:6] == 'd6))
-        r_config_cnt <= 'd0;
-    else if(ro_grant_valid_1d && (ro_4x4_req_1[1:0] + ro_4x4_req_1[3:2] + ro_4x4_req_1[5:4] + ro_4x4_req_1[7:6] != 'd6))
-        r_config_cnt <= r_config_cnt + 'd1;
-    else
-        r_config_cnt <= r_config_cnt;
-end
 //生成输出级模块的配置请求
 integer out_n;
-always @(posedge i_clk or posedge i_rst)begin
+always @(*)begin
     if(i_rst)begin
         for(out_n = 0 ; out_n < P_PORTNUM ; out_n = out_n + 1)begin
-            ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] <= 'd0;
+            ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] = 'd0;
         end
     end
     else if(ro_grant_valid_1d)begin
         for(out_n = 0 ; out_n < P_PORTNUM ; out_n = out_n + 1)begin
-            ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] <= dstOf_8x8endport[out_n];
+            ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] = dstOf_8x8endport[out_n];
         end        
     end
     else begin
         for(out_n = 0 ; out_n < P_PORTNUM ; out_n = out_n + 1)begin
-            ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] <= ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH];
+            ro_8x8out_req[P_DSTWIDTH*out_n +: P_DSTWIDTH] = ro_8x8out_req_reg[P_DSTWIDTH*out_n +: P_DSTWIDTH];
         end        
     end
 end
 
-always @(posedge i_clk or posedge i_rst)begin
-    if(i_rst)
-        ro_8x8out_valid <= 'd0;
-    else if(ro_grant_valid_1d)
-        ro_8x8out_valid <= 'd1;
-    else
-        ro_8x8out_valid <= 'd0;
+always @(posedge i_clk)begin
+    ro_8x8out_req_reg <= ro_8x8out_req;
 end
+
 
 endmodule

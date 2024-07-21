@@ -55,17 +55,17 @@ assign req_sub_first_priority = w_double_req - i_first_priority;
 assign w_double_req = {i_req,i_req};
 assign w_double_grant = w_double_req & (~req_sub_first_priority);
 
-assign o_grant = w_double_grant[P_CHANNEL_NUM - 1 : 0] | w_double_grant[2*P_CHANNEL_NUM - 1 : P_CHANNEL_NUM];
+assign o_grant = ro_grant;
 assign o_grant_valid = i_req_valid ? 1'b1 : 1'b0;
 /***************always****************/
 
-always @(posedge i_clk or posedge i_rst)begin
+always @(*)begin
     if(i_rst)
-        ro_grant <= 'd0;
+        ro_grant = 'd0;
     else if(i_req_valid)
-        ro_grant <= w_double_grant[P_CHANNEL_NUM - 1 : 0] | w_double_grant[2*P_CHANNEL_NUM - 1 : P_CHANNEL_NUM];
+        ro_grant = w_double_grant[P_CHANNEL_NUM - 1 : 0] | w_double_grant[2*P_CHANNEL_NUM - 1 : P_CHANNEL_NUM];
     else
-        ro_grant <= ro_grant;   
+        ro_grant = 'd0;   
 end
 
 always @(posedge i_clk or posedge i_rst)begin
